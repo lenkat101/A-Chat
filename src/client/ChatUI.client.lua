@@ -78,7 +78,7 @@ UIGradient.Parent = MainFrame
 -- Message Container
 local Scroller = Instance.new("ScrollingFrame")
 Scroller.Name = "Scroller"
-Scroller.Size = UDim2.new(1, -16, 1, -50)
+Scroller.Size = UDim2.new(1, -16, 1, -80) -- Shrink to make room for tabs
 Scroller.Position = UDim2.new(0, 8, 0, 8)
 Scroller.BackgroundTransparency = 1
 Scroller.BorderSizePixel = 0
@@ -92,6 +92,38 @@ local UIList = Instance.new("UIListLayout")
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4)
 UIList.Parent = Scroller
+
+-- Tabs Container
+local TabFrame = Instance.new("Frame")
+TabFrame.Name = "TabFrame"
+TabFrame.Size = UDim2.new(1, -16, 0, 24)
+TabFrame.Position = UDim2.new(0, 8, 1, -70) -- Above input
+TabFrame.BackgroundTransparency = 1
+TabFrame.Parent = MainFrame
+
+local TabList = Instance.new("UIListLayout")
+TabList.FillDirection = Enum.FillDirection.Horizontal
+TabList.SortOrder = Enum.SortOrder.LayoutOrder
+TabList.Padding = UDim.new(0, 8)
+TabList.Parent = TabFrame
+
+local function CreateTab(name, layoutOrder)
+	local btn = Instance.new("TextButton")
+	btn.Name = name .. "Tab"
+	btn.Text = "[" .. name .. "]"
+	btn.Size = UDim2.new(0, 0, 1, 0)
+	btn.AutomaticSize = Enum.AutomaticSize.X
+	btn.BackgroundTransparency = 1
+	btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+	btn.Font = FONTS.Name
+	btn.TextSize = 14
+	btn.LayoutOrder = layoutOrder
+	btn.Parent = TabFrame
+	return btn
+end
+
+local GlobalTab = CreateTab("Global", 1)
+local TeamTab = CreateTab("Team", 2)
 
 -- Input Area
 local InputFrame = Instance.new("Frame")
@@ -129,24 +161,38 @@ TextBox.Parent = InputFrame
 local CurrentChannel = "Global" -- "Global" or "Team"
 
 local function UpdateInputVisuals()
+	-- Reset Tabs
+	GlobalTab.TextColor3 = Color3.fromRGB(150, 150, 150)
+	TeamTab.TextColor3 = Color3.fromRGB(150, 150, 150)
+	
 	if CurrentChannel == "Global" then
-		TextBox.PlaceholderText = "[Global] Click here to chat..."
+		TextBox.PlaceholderText = "Click here to chat..."
 		TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+		GlobalTab.TextColor3 = Color3.fromRGB(255, 255, 255)
 	elseif CurrentChannel == "Team" then
 		local teamColor = Player.TeamColor.Color
-		TextBox.PlaceholderText = "[Team] Click here to chat..."
+		TextBox.PlaceholderText = "Chatting to Team..."
 		TextBox.TextColor3 = teamColor
+		TeamTab.TextColor3 = teamColor
 	end
+end
+
+local function SetChannel(mode)
+	CurrentChannel = mode
+	UpdateInputVisuals()
 end
 
 local function ToggleChannel()
 	if CurrentChannel == "Global" then
-		CurrentChannel = "Team"
+		SetChannel("Team")
 	else
-		CurrentChannel = "Global"
+		SetChannel("Global")
 	end
-	UpdateInputVisuals()
 end
+
+-- Connect Tabs
+GlobalTab.MouseButton1Click:Connect(function() SetChannel("Global") end)
+TeamTab.MouseButton1Click:Connect(function() SetChannel("Team") end)
 
 local function SanitizeXML(str)
 	-- Escape rich text characters so players can't inject weird tags
