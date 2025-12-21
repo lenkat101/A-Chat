@@ -33,6 +33,10 @@ function Channel:RemoveSpeaker(player)
 	end
 end
 
+function Channel:HasSpeaker(player)
+	return table.find(self.Speakers, player) ~= nil
+end
+
 function Channel:BroadcastMessage(sender, message)
 	-- Filter and Send
 	-- We use a Promise to handle the async filtering

@@ -32,9 +32,62 @@ function ChatService:Start()
 	
 	-- Handle Network Messages
 	local remote = Network.GetRemote()
-	remote.OnServerEvent:Connect(function(player, msg)
-		self:ProcessMessage(player, msg)
+	remote.OnServerEvent:Connect(function(player, msg, targetChannel)
+		self:ProcessMessage(player, msg, targetChannel)
 	end)
+
+	-- Start Team Handling
+	self:WatchTeams()
+end
+
+function ChatService:WatchTeams()
+	local Teams = game:GetService("Teams")
+	
+	-- 1. Create channels for existing teams
+	local function onTeamAdded(team)
+		local chanName = "Team_" .. team.Name
+		self:CreateChannel(chanName, false) -- AutoJoin false, we manage it manually
+	end
+	
+	Teams.ChildAdded:Connect(onTeamAdded)
+	for _, team in ipairs(Teams:GetChildren()) do
+		onTeamAdded(team)
+	end
+	
+	-- 2. Handle Player Team Changes
+	local function trackPlayerTeam(player)
+		local function onTeamChange()
+			local team = player.Team
+			
+			-- Leave all other "Team_*" channels
+			for name, channel in pairs(self.Channels) do
+				if string.sub(name, 1, 5) == "Team_" then
+					channel:RemoveSpeaker(player)
+				end
+			end
+			
+			-- Join new team channel
+			if team then
+				local chanName = "Team_" .. team.Name
+				local channel = self.Channels[chanName]
+				if channel then
+					channel:AddSpeaker(player)
+				else
+					-- Should exist, but just in case
+					channel = self:CreateChannel(chanName, false)
+					channel:AddSpeaker(player)
+				end
+			end
+		end
+		
+		player:GetPropertyChangedSignal("Team"):Connect(onTeamChange)
+		onTeamChange() -- Run once initially
+	end
+	
+	Players.PlayerAdded:Connect(trackPlayerTeam)
+	for _, p in ipairs(Players:GetPlayers()) do
+		trackPlayerTeam(p)
+	end
 end
 
 function ChatService:CreateChannel(name, autoJoin)
@@ -57,7 +110,7 @@ function ChatService:OnPlayerJoin(player)
 	-- (Optional)
 end
 
-function ChatService:ProcessMessage(player, message)
+function ChatService:ProcessMessage(player, message, targetChannelName)
 	if typeof(message) ~= "string" then return end
 	message = string.sub(message, 1, 200) -- Hard cap
 	if #message == 0 or string.match(message, "^%s*$") then return end
@@ -68,11 +121,27 @@ function ChatService:ProcessMessage(player, message)
 		if handled then return end
 	end
 	
-	-- 2. Default to Global Channel (or player's active channel)
-	-- For now, we assume Global.
-	local channel = self.Channels["Global"]
-	if channel then
+	-- 2. Determine Channel
+	-- Default to Global if not specified
+	targetChannelName = targetChannelName or "Global"
+	
+	-- Security: If trying to chat in Team channel, verify they are on that team
+	if targetChannelName == "Team" then
+		if player.Team then
+			targetChannelName = "Team_" .. player.Team.Name
+		else
+			-- No team? Force global
+			targetChannelName = "Global"
+		end
+	end
+	
+	local channel = self.Channels[targetChannelName]
+	
+	-- 3. Verify they are actually IN that channel
+	if channel and channel:HasSpeaker(player) then
 		channel:BroadcastMessage(player, message)
+	else
+		warn(player.Name .. " tried to chat in " .. tostring(targetChannelName) .. " but is not a member.")
 	end
 end
 

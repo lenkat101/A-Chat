@@ -124,6 +124,28 @@ TextBox.Parent = InputFrame
 -- LOGIC
 --------------------------------------------------------------------------------
 
+local CurrentChannel = "Global" -- "Global" or "Team"
+
+local function UpdateInputVisuals()
+	if CurrentChannel == "Global" then
+		TextBox.PlaceholderText = "[Global] Click here to chat..."
+		TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	elseif CurrentChannel == "Team" then
+		local teamColor = Player.TeamColor.Color
+		TextBox.PlaceholderText = "[Team] Click here to chat..."
+		TextBox.TextColor3 = teamColor
+	end
+end
+
+local function ToggleChannel()
+	if CurrentChannel == "Global" then
+		CurrentChannel = "Team"
+	else
+		CurrentChannel = "Global"
+	end
+	UpdateInputVisuals()
+end
+
 local function SanitizeXML(str)
 	-- Escape rich text characters so players can't inject weird tags
 	str = string.gsub(str, "&", "&amp;")
@@ -136,19 +158,23 @@ local function CreateMessageLabel(senderName, messageText, channelName)
 	-- Basic Rich Text Formatting
 	local cleanMsg = SanitizeXML(messageText)
 	local colorHex = "#FFFFFF" -- Default white
+	local channelPrefix = ""
 	
 	-- Determine color based on channel
 	if channelName == "Global" then
 		colorHex = "#FFFFFF"
-	elseif channelName == "Team" then
-		colorHex = "#00AAFF" -- Blueish
+		channelPrefix = ""
+	elseif string.sub(channelName, 1, 5) == "Team_" then
+		colorHex = "#00AAFF" -- Blueish default, or we could look up Team color
+		channelPrefix = "[Team] "
 	elseif channelName == "System" then
 		colorHex = "#FFD700" -- Gold
 	end
 	
 	-- Format: <b>[Name]:</b> Message
 	local richText = string.format(
-		"<font color='#AAAAAA'>[</font><font color='%s'><b>%s</b></font><font color='#AAAAAA'>]:</font> %s",
+		"<font color='#AAAAAA'>%s[</font><font color='%s'><b>%s</b></font><font color='#AAAAAA'>]:</font> %s",
+		channelPrefix,
 		"#FFFFFF", -- Name color (could be team color)
 		senderName,
 		cleanMsg
@@ -205,7 +231,7 @@ TextBox.FocusLost:Connect(function(enterPressed)
 	if enterPressed then
 		local text = TextBox.Text
 		if #text > 0 then
-			Remote:FireServer(text)
+			Remote:FireServer(text, CurrentChannel)
 			TextBox.Text = ""
 			
 			-- Keep focus if they want? Maybe not.
@@ -216,6 +242,13 @@ end)
 
 -- Hotkey '/' to focus chat
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.Tab then
+		-- Toggle Team/Global
+		if not gameProcessed or TextBox:IsFocused() then
+			ToggleChannel()
+		end
+	end
+
 	if gameProcessed then return end
 	
 	if input.KeyCode == Enum.KeyCode.Slash then
@@ -223,5 +256,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		TextBox:CaptureFocus()
 	end
 end)
+
+-- Init
+UpdateInputVisuals()
 
 print("A-Chat Client: Modern UI Loaded.")
