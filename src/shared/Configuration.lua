@@ -132,9 +132,10 @@ Configuration.ToxicReplacements = {
 	["noob"] = "new player",
 	["noobs"] = "new players",
 	["skill issue"] = "minor setback",
-	["diff"] = "friendship gap",
+	["diff"] = "I wish I was as good as you",
 	["mid"] = "top tier",
 	["dogwater"] = "extremely hydrated",
+	["dog"] = "loyal best friend",
 	["tryhard"] = "passionate player",
 	["sweat"] = "hard worker",
 	["camper"] = "tactical positioner",
@@ -158,6 +159,9 @@ Configuration.ToxicReplacements = {
 	["cringe"] = "unique",
 	["bozo"] = "friend",
 	["rip"] = "gg",
+	["ez"] = "you are way better than me",
+	["l"] = "I love you guys",
+	["ratio"] = "I value your opinion",
 }
 
 return Configuration
