@@ -6,6 +6,9 @@
       "$className": "ReplicatedStorage",
       "AChat_Shared": {
         "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
     "ServerScriptService": {
