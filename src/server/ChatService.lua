@@ -10,7 +10,6 @@ local Signal = require(Packages.Signal)
 local Network = require(ReplicatedStorage.AChat_Shared.Network)
 local Configuration = require(ReplicatedStorage.AChat_Shared.Configuration)
 local Channel = require(script.Parent.Channel)
-local Command = require(script.Parent.Command)
 local ServerCommands = require(script.Parent.ServerCommands)
 
 local ChatService = {}
@@ -188,10 +187,6 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		-- We pass 'self' so the command module can call SendInternalMessage
 		local handled = ServerCommands.Process(player, message, self)
 		if handled then return end
-		
-		-- Also check legacy Command.lua (if any left)
-		local handledLegacy = Command.Process(player, message)
-		if handledLegacy then return end
 	end
 	
 	-- 2.5 Terminology Correction (The "Skid Humiliator")

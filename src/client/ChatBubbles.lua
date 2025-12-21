@@ -69,7 +69,7 @@ local function CreateBubbleGui(text)
 	
 	-- Determine Size based on Text
 	local textService = game:GetService("TextService")
-	local bounds = textService:GetTextSize(text, 16, Enum.Font.GothamMedium, Vector2.new(200, 1000))
+	local bounds = textService:GetTextSize(text, 16, Enum.Font.GothamMedium, Vector2.new(CONFIG.BubbleWidth, 1000))
 	
 	local width = math.max(bounds.X + 24, 50) -- Min width
 	local height = bounds.Y + 16
