@@ -8,6 +8,7 @@ local TextService = game:GetService("TextService")
 
 local NetworkModule = require(ReplicatedStorage.AChat_Shared.Network)
 local ClientCommands = require(script.Parent.ClientCommands)
+local ChatBubbles = require(script.Parent.ChatBubbles)
 local Remote = NetworkModule.GetRemote()
 
 local Player = Players.LocalPlayer
@@ -247,8 +248,16 @@ local UIInterface = {
 }
 
 -- Listen for incoming messages
-Remote.OnClientEvent:Connect(function(sender, message, channel)
-	AddMessage(sender, message, channel or "Global")
+Remote.OnClientEvent:Connect(function(senderName, message, channel)
+	AddMessage(senderName, message, channel or "Global")
+	
+	-- Show Chat Bubble (if not System/Whisper)
+	if channel ~= "System" and channel ~= "Whisper" then
+		local senderPlayer = Players:FindFirstChild(senderName)
+		if senderPlayer then
+			ChatBubbles.Create(senderPlayer, message)
+		end
+	end
 end)
 
 -- Handle sending
