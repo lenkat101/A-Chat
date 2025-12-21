@@ -1,4 +1,11 @@
 # A-Chat 💬
+
+> [!WARNING]
+> **ALPHA STATUS: UNTESTED**
+> This project is currently in **Early Alpha (v0.2)**. The code has been architected and structurally verified, but **has not yet been battle-tested in a live Roblox game**.
+> 
+> Bugs are expected. Use at your own risk. If you find issues, please open a Ticket/Issue on GitHub!
+
 **The Open Source Legacy Chat System for Roblox**
 
 A-Chat is a fully custom, modular chat system designed to restore the **Legacy Chat Behavior** to Roblox games. It bypasses the 2025 chat segregation updates by implementing a custom networking and filtering stack, allowing all players in a server to communicate freely (while strictly adhering to Roblox's filtering requirements).
@@ -6,6 +13,7 @@ A-Chat is a fully custom, modular chat system designed to restore the **Legacy C
 ## 🚀 Features
 
 *   **Global Chat:** Talk to everyone in the server, regardless of "Text Chat Matchmaking Signal" groups.
+*   **Team Chat:** Automatically creates private channels for teams. Press **TAB** to toggle between Global and Team chat.
 *   **Modular Architecture:** Built with professional standards using `Wally`, `Rojo`, and modular Lua services.
 *   **Modern UI:** A sleek, rounded-corner interface with animations and RichText support.
 *   **Safe & Compliant:** Implements `TextService:FilterStringAsync` rigorously to ensure your game stays safe and compliant with TOS.
