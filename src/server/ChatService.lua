@@ -11,6 +11,7 @@ local Network = require(ReplicatedStorage.AChat_Shared.Network)
 local Configuration = require(ReplicatedStorage.AChat_Shared.Configuration)
 local Channel = require(script.Parent.Channel)
 local Command = require(script.Parent.Command)
+local ServerCommands = require(script.Parent.ServerCommands)
 
 local ChatService = {}
 ChatService.Channels = {}
@@ -49,7 +50,26 @@ function ChatService:Start()
 	self:WatchTeams()
 end
 
--- [[ RATE LIMITER: TOKEN BUCKET ALGORITHM ]]
+-- [[ API METHODS ]]
+
+-- Sends a direct message to a specific player (used for Whispers/System)
+function ChatService:SendInternalMessage(targetPlayer, senderName, message, channelName)
+	local remote = Network.GetRemote()
+	-- Basic sanity check for filtering if it's a whisper between players
+	-- For Alpha, we rely on the command handler, but ideally filter here.
+	remote:FireClient(targetPlayer, senderName, message, channelName)
+end
+
+function ChatService:SendSystemMessage(targetPlayer, text)
+	self:SendInternalMessage(targetPlayer, "System", text, "System")
+end
+
+function ChatService:BroadcastSystemMessage(text)
+	local remote = Network.GetRemote()
+	remote:FireAllClients("System", text, "System")
+end
+
+-- [[ RATE LIMITER ]]
 function ChatService:CheckRateLimit(player)
 	local userId = player.UserId
 	local now = os.clock()
@@ -82,7 +102,6 @@ end
 
 function ChatService:WatchTeams()
 	local Teams = game:GetService("Teams")
--- ... (rest of the code follows)
 	
 	-- 1. Create channels for existing teams
 	local function onTeamAdded(team)
@@ -146,9 +165,6 @@ function ChatService:OnPlayerJoin(player)
 			channel:AddSpeaker(player)
 		end
 	end
-	
-	-- Send welcome message
-	-- (Optional)
 end
 
 function ChatService:ProcessMessage(player, message, targetChannelName)
@@ -167,46 +183,39 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 	
 	if #message == 0 or string.match(message, "^%s*$") then return end
 
-	-- 2. Check for Commands
+	-- 2. Check for Server Commands (/w, /r, /kick)
 	if string.sub(message, 1, 1) == "/" then
-		local handled = Command.Process(player, message)
+		-- We pass 'self' so the command module can call SendInternalMessage
+		local handled = ServerCommands.Process(player, message, self)
 		if handled then return end
+		
+		-- Also check legacy Command.lua (if any left)
+		local handledLegacy = Command.Process(player, message)
+		if handledLegacy then return end
 	end
 	
 	-- 2.5 Terminology Correction (The "Skid Humiliator")
 	if Configuration.TerminologyCorrection then
 		for bad, good in pairs(Configuration.SkidReplacements) do
-			-- Case insensitive gsub with word boundaries to prevent replacing inside other words
-			-- We use a simpler approach here because Lua patterns for boundaries (%b) are tricky
-			-- We will match the word surrounded by non-alphanumeric or start/end of string
-			
 			message = string.gsub(message, "(%a+)", function(word)
-				if string.lower(word) == bad then
-					return good
-				end
+				if string.lower(word) == bad then return good end
 				return word
 			end)
 		end
 	end
 	
-	-- 2.6 Anti-Toxic Filter (The "Wholesome Troller")
+	-- 2.6 Anti-Toxic Filter
 	if Configuration.AntiToxic then
 		for bad, good in pairs(Configuration.ToxicReplacements) do
 			message = string.gsub(message, "(%a+)", function(word)
 				local lower = string.lower(word)
-				-- Handle multi-word replacements manually? For now, single word focus or key match
-				if lower == bad then
-					return good
-				end
+				if lower == bad then return good end
 				return word
 			end)
 			
-			-- Handle phrases (keys with spaces)
 			if string.find(bad, " ") then
-				-- Case insensitive find for phrases
 				local start, finish = string.find(string.lower(message), bad, 1, true)
 				if start then
-					-- We found a phrase like "skill issue", replace the original slice
 					message = string.sub(message, 1, start-1) .. good .. string.sub(message, finish+1)
 				end
 			end
@@ -214,7 +223,6 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 	end
 	
 	-- 3. Determine Channel
-	-- Default to Global if not specified
 	targetChannelName = targetChannelName or "Global"
 	
 	-- Security: If trying to chat in Team channel, verify they are on that team
@@ -222,14 +230,13 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		if player.Team then
 			targetChannelName = "Team_" .. player.Team.Name
 		else
-			-- No team? Force global
 			targetChannelName = "Global"
 		end
 	end
 	
 	local channel = self.Channels[targetChannelName]
 	
-	-- 3. Verify they are actually IN that channel
+	-- 4. Verify they are actually IN that channel
 	if channel and channel:HasSpeaker(player) then
 		channel:BroadcastMessage(player, message)
 	else

@@ -170,6 +170,11 @@ local function CreateMessageLabel(senderName, messageText, channelName)
 		channelPrefix = "[Team] "
 	elseif channelName == "System" then
 		colorHex = "#FFD700" -- Gold
+	elseif channelName == "Whisper" then
+		colorHex = "#AAAAAA" -- Grey
+		channelPrefix = "[Whisper] "
+		-- Make italics
+		cleanMsg = "<i>" .. cleanMsg .. "</i>"
 	end
 	
 	-- Format: <b>[Name]:</b> Message
