@@ -8,6 +8,7 @@ local Promise = require(Packages.Promise)
 local Signal = require(Packages.Signal)
 
 local Network = require(ReplicatedStorage.AChat_Shared.Network)
+local Configuration = require(ReplicatedStorage.AChat_Shared.Configuration)
 local Channel = require(script.Parent.Channel)
 local Command = require(script.Parent.Command)
 
@@ -15,15 +16,23 @@ local ChatService = {}
 ChatService.Channels = {}
 ChatService.MessageReceived = Signal.new() -- Event for external scripts
 
+-- Rate Limiting State: [UserId] = { Tokens = number, LastUpdate = number }
+local UserRateLimits = {}
+
 function ChatService:Start()
 	print("A-Chat: ChatService Starting...")
 	
 	-- Create Global Channel
-	self:CreateChannel("Global", true)
+	self:CreateChannel("Global", Configuration.AutoJoinGlobal)
 	
 	-- Handle Player Connections
 	Players.PlayerAdded:Connect(function(player)
 		self:OnPlayerJoin(player)
+	end)
+	
+	Players.PlayerRemoving:Connect(function(player)
+		-- Clean up memory
+		UserRateLimits[player.UserId] = nil
 	end)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -40,8 +49,40 @@ function ChatService:Start()
 	self:WatchTeams()
 end
 
+-- [[ RATE LIMITER: TOKEN BUCKET ALGORITHM ]]
+function ChatService:CheckRateLimit(player)
+	local userId = player.UserId
+	local now = os.clock()
+	local limits = Configuration.RateLimit
+	
+	if not UserRateLimits[userId] then
+		UserRateLimits[userId] = {
+			Tokens = limits.MaxTokens,
+			LastUpdate = now
+		}
+	end
+	
+	local state = UserRateLimits[userId]
+	
+	-- Refill tokens based on time passed
+	local elapsed = now - state.LastUpdate
+	local newTokens = elapsed * limits.RestoreRate
+	
+	state.Tokens = math.min(limits.MaxTokens, state.Tokens + newTokens)
+	state.LastUpdate = now
+	
+	-- Check if we can afford the cost
+	if state.Tokens >= limits.Cost then
+		state.Tokens = state.Tokens - limits.Cost
+		return true -- Allowed
+	else
+		return false -- Rejected (Spam)
+	end
+end
+
 function ChatService:WatchTeams()
 	local Teams = game:GetService("Teams")
+-- ... (rest of the code follows)
 	
 	-- 1. Create channels for existing teams
 	local function onTeamAdded(team)
@@ -112,16 +153,27 @@ end
 
 function ChatService:ProcessMessage(player, message, targetChannelName)
 	if typeof(message) ~= "string" then return end
-	message = string.sub(message, 1, 200) -- Hard cap
+	
+	-- 0. Security: Rate Limit Check
+	if not self:CheckRateLimit(player) then
+		warn("A-Chat: Rate limit exceeded for " .. player.Name)
+		return 
+	end
+
+	-- 1. Length Check
+	if #message > Configuration.MaxLength then
+		message = string.sub(message, 1, Configuration.MaxLength)
+	end
+	
 	if #message == 0 or string.match(message, "^%s*$") then return end
 
-	-- 1. Check for Commands
+	-- 2. Check for Commands
 	if string.sub(message, 1, 1) == "/" then
 		local handled = Command.Process(player, message)
 		if handled then return end
 	end
 	
-	-- 2. Determine Channel
+	-- 3. Determine Channel
 	-- Default to Global if not specified
 	targetChannelName = targetChannelName or "Global"
 	
