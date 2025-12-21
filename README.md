@@ -56,4 +56,5 @@ Contributions are welcome!
 5.  Open a Pull Request.
 
 ## 📜 License
-MIT License. Free to use in any project.
+
+GNU GPLv3 License. Free to use, but modifications must be open-source.
