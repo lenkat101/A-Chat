@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local TextService = game:GetService("TextService")
 
 local NetworkModule = require(ReplicatedStorage.AChat_Shared.Network)
+local ClientCommands = require(script.Parent.ClientCommands)
 local Remote = NetworkModule.GetRemote()
 
 local Player = Players.LocalPlayer
@@ -180,6 +181,11 @@ local function CreateMessageLabel(senderName, messageText, channelName)
 		cleanMsg
 	)
 	
+	-- Handle raw system messages differently (if returned string above)
+	if channelName == "System" and senderName == "System" then
+		richText = string.format("<font color='%s'>%s</font>", colorHex, cleanMsg)
+	end
+	
 	local label = Instance.new("TextLabel")
 	label.Name = "Msg"
 	label.Size = UDim2.new(1, 0, 0, 0)
@@ -221,6 +227,20 @@ local function AddMessage(senderName, messageText, channelName)
 	end
 end
 
+-- Interface for ClientCommands to use
+local UIInterface = {
+	Clear = function()
+		for _, child in ipairs(Scroller:GetChildren()) do
+			if child:IsA("TextLabel") then
+				child:Destroy()
+			end
+		end
+	end,
+	AddSystemMessage = function(msg)
+		AddMessage("System", msg, "System")
+	end
+}
+
 -- Listen for incoming messages
 Remote.OnClientEvent:Connect(function(sender, message, channel)
 	AddMessage(sender, message, channel or "Global")
@@ -231,7 +251,13 @@ TextBox.FocusLost:Connect(function(enterPressed)
 	if enterPressed then
 		local text = TextBox.Text
 		if #text > 0 then
-			Remote:FireServer(text, CurrentChannel)
+			-- Check Client Commands First
+			local handled = ClientCommands.Process(text, UIInterface)
+			
+			if not handled then
+				Remote:FireServer(text, CurrentChannel)
+			end
+			
 			TextBox.Text = ""
 			
 			-- Keep focus if they want? Maybe not.
