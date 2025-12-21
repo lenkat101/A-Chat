@@ -33,4 +33,17 @@ Configuration.Fonts = {
 -- [[ CHANNELS ]]
 Configuration.AutoJoinGlobal = true
 
+-- [[ FUN / EXTRAS ]]
+-- Replaces terms to deny cheaters the glory of being called "hackers".
+-- Example: "There is a hacker!" -> "There is a script kiddie!"
+Configuration.TerminologyCorrection = false
+Configuration.Replacements = {
+	["hacker"] = "script kiddie",
+	["hacking"] = "using a script",
+	["exploiter"] = "cheater",
+	["exploiting"] = "cheating",
+	["scriptware"] = "generic cheat",
+	["synapse"] = "paid software",
+}
+
 return Configuration

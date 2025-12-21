@@ -173,6 +173,19 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		if handled then return end
 	end
 	
+	-- 2.5 Terminology Correction (The "Skid Filter")
+	if Configuration.TerminologyCorrection then
+		for bad, good in pairs(Configuration.Replacements) do
+			-- Case insensitive gsub
+			message = string.gsub(message, "(%a+)", function(word)
+				if string.lower(word) == bad then
+					return good
+				end
+				return word
+			end)
+		end
+	end
+	
 	-- 3. Determine Channel
 	-- Default to Global if not specified
 	targetChannelName = targetChannelName or "Global"
