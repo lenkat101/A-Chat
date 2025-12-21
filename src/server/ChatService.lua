@@ -173,16 +173,43 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		if handled then return end
 	end
 	
-	-- 2.5 Terminology Correction (The "Skid Filter")
+	-- 2.5 Terminology Correction (The "Skid Humiliator")
 	if Configuration.TerminologyCorrection then
-		for bad, good in pairs(Configuration.Replacements) do
-			-- Case insensitive gsub
+		for bad, good in pairs(Configuration.SkidReplacements) do
+			-- Case insensitive gsub with word boundaries to prevent replacing inside other words
+			-- We use a simpler approach here because Lua patterns for boundaries (%b) are tricky
+			-- We will match the word surrounded by non-alphanumeric or start/end of string
+			
 			message = string.gsub(message, "(%a+)", function(word)
 				if string.lower(word) == bad then
 					return good
 				end
 				return word
 			end)
+		end
+	end
+	
+	-- 2.6 Anti-Toxic Filter (The "Wholesome Troller")
+	if Configuration.AntiToxic then
+		for bad, good in pairs(Configuration.ToxicReplacements) do
+			message = string.gsub(message, "(%a+)", function(word)
+				local lower = string.lower(word)
+				-- Handle multi-word replacements manually? For now, single word focus or key match
+				if lower == bad then
+					return good
+				end
+				return word
+			end)
+			
+			-- Handle phrases (keys with spaces)
+			if string.find(bad, " ") then
+				-- Case insensitive find for phrases
+				local start, finish = string.find(string.lower(message), bad, 1, true)
+				if start then
+					-- We found a phrase like "skill issue", replace the original slice
+					message = string.sub(message, 1, start-1) .. good .. string.sub(message, finish+1)
+				end
+			end
 		end
 	end
 	

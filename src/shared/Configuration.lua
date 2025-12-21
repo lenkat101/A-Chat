@@ -7,9 +7,6 @@ Configuration.HistoryLength = 50 -- How many messages to keep in client memory
 
 -- [[ SECURITY / FLOOD PROTECTION ]]
 -- We use a Token Bucket algorithm for smooth rate limiting.
--- MaxTokens: Maximum burst allowed.
--- RestoreRate: How many tokens refill per second.
--- Cost: How many tokens 1 message costs.
 Configuration.RateLimit = {
 	MaxTokens = 5,       -- Player can send 5 messages quickly
 	RestoreRate = 0.5,   -- Generates 1 new message allowance every 2 seconds
@@ -33,67 +30,134 @@ Configuration.Fonts = {
 -- [[ CHANNELS ]]
 Configuration.AutoJoinGlobal = true
 
--- [[ FUN / EXTRAS ]]
--- Replaces terms to deny cheaters the glory of being called "hackers".
--- Example: "There is a hacker!" -> "There is a script kiddie!"
+-- [[ 1. TERMINOLOGY CORRECTION (The "Skid Humiliator") ]]
+-- Disabled by default. If enabled, replaces "hacker" terms with humiliating alternatives.
 Configuration.TerminologyCorrection = false
-Configuration.Replacements = {
-	-- General Identities
-	["hacker"] = "script kiddie",
-	["hackers"] = "script kiddies",
-	["hacking"] = "using a script",
-	["hacked"] = "downloaded a script",
-	["hack"] = "cheat",
-	["hacks"] = "cheats",
-	["exploiter"] = "cheater",
-	["exploiters"] = "cheaters",
-	["exploiting"] = "cheating",
-	["exploit"] = "cheat software",
-	["exploits"] = "cheat softwares",
-	["modder"] = "cheater", -- "Modder" gives them too much credit
-	["modding"] = "cheating",
+Configuration.SkidReplacements = {
+	-- Identity & Ego
+	["hacker"] = "script kiddie with no friends",
+	["hackers"] = "skids who can't code",
+	["hacking"] = "Googling 'free cheats'",
+	["hacked"] = "downloaded a virus",
+	["hack"] = "cry for help",
+	["hacks"] = "crutches",
+	["exploiter"] = "attention seeker",
+	["exploiters"] = "attention seekers",
+	["exploiting"] = "compensating for something",
+	["exploit"] = "malware",
+	["exploits"] = "viruses",
+	["modder"] = "imposter",
+	["modding"] = "pretending to code",
+	["scripter"] = "copy-paster", -- Context dependent, but usually funny in public servers
+	["1337"] = "literally 12 years old",
+	["pwned"] = "I got lucky",
+	["owned"] = "I need validation",
+	["rekt"] = "please notice me",
+	["clapped"] = "I'm projecting my insecurities",
+	["ez"] = "I'm extremely insecure",
+	["lzz"] = "my dad left me",
+	["lzzz"] = "I'm lonely",
+	["ratio"] = "I have no personality",
+	["counter"] = "I clicked a button",
 	
-	-- Tools & Executors (The "Brands")
-	["synapse"] = "my dad's wallet",
-	["synapsex"] = "expensive cheats",
-	["scriptware"] = "paid cheats",
-	["krnl"] = "free cheats",
-	["jjsploit"] = "bitcoin miner", -- Classic
-	["fluxus"] = "script runner",
-	["electron"] = "script runner",
-	["oxygen"] = "script runner",
-	["wearedevs"] = "sketchy site",
-	["v3rmillion"] = "skid forums",
-	["v3rm"] = "skid forums",
-	["executor"] = "script runner",
-	["executors"] = "script runners",
-	["injector"] = "dll injector",
-	["injecting"] = "loading dlls",
+	-- Tools (Brands -> Trash)
+	["synapse"] = "mom's credit card",
+	["synapsex"] = "overpriced malware",
+	["scriptware"] = "paid malware",
+	["krnl"] = "free virus",
+	["jjsploit"] = "bitcoin miner",
+	["fluxus"] = "sketchy software",
+	["electron"] = "sketchy software",
+	["oxygen"] = "sketchy software",
+	["wearedevs"] = "virus site",
+	["v3rmillion"] = "skid playground",
+	["v3rm"] = "skid playground",
+	["executor"] = "cheat program",
+	["executors"] = "cheat programs",
+	["injector"] = "virus loader",
+	["injecting"] = "infecting my pc",
+	["bypass"] = "failed attempt",
+	["unc"] = "useless nerd code",
+	["sitelock"] = "DRM for skids",
+	["whitelist"] = "club penguin membership",
+	["key"] = "ad link",
+	["linkvertise"] = "adware farm",
 	
-	-- Specific Cheats/Actions
-	["aimbot"] = "bad aim assist",
-	["aimbotting"] = "using aim assist",
-	["esp"] = "wallhacks",
-	["wallhack"] = "wallhack", -- Keeping it simple or degrading it? "x-ray"
-	["noclip"] = "wall phasing",
-	["godmode"] = "health freezing",
-	["flyhack"] = "air swimming",
-	["flying"] = "air swimming", -- Context dependent, but funny if they say "he is flying"
-	["speedhack"] = "running fast",
-	["speedhacking"] = "running fast",
-	["btools"] = "building tools",
-	["infiniteyield"] = "admin commands",
-	["infyield"] = "admin commands",
-	["darkdex"] = "explorer viewer",
-	["remotespy"] = "network logger",
-	
-	-- Slang
-	["1337"] = "12 years old",
-	["pwned"] = "defeated",
-	["rekt"] = "destroyed",
-	["ez"] = "I'm insecure", -- The ultimate ego check
-	["lzz"] = "I'm lagging",
-	["ratio"] = "I need attention",
+	-- Techniques (Skill -> Crutches)
+	["aimbot"] = "I can't aim",
+	["aimbotting"] = "relying on software",
+	["aimlock"] = "software assistance",
+	["esp"] = "wallhacks because I'm blind",
+	["chams"] = "shiny playdough mode",
+	["noclip"] = "walking through walls like a ghost",
+	["godmode"] = "being afraid to die",
+	["flyhack"] = "swimming in air",
+	["flying"] = "swimming in air",
+	["speedhack"] = "running away from my problems",
+	["speedhacking"] = "running away from problems",
+	["btools"] = "deleting the map like a toddler",
+	["infiniteyield"] = "the only script I know",
+	["infyield"] = "the only script I know",
+	["iy"] = "the only script I know",
+	["darkdex"] = "looking at things I didn't make",
+	["dex"] = "looking at things I didn't make",
+	["remotespy"] = "staring at arguments",
+	["rspy"] = "staring at arguments",
+	["saveinstance"] = "stealing the map",
+	["decompiler"] = "code stealer",
+	["anti-afk"] = "auto-clicker",
+	["autofarm"] = "botting",
+	["autofarming"] = "botting",
+}
+
+-- [[ 2. ANTI-TOXIC FILTER (The "Wholesome Troller") ]]
+-- Disabled by default. Turns toxic behavior into extreme kindness.
+Configuration.AntiToxic = false
+Configuration.ToxicReplacements = {
+	["trash"] = "a wonderful person",
+	["garbage"] = "trying their absolute best",
+	["bad"] = "misunderstood",
+	["worst"] = "most improved",
+	["sucks"] = "is learning rapidly",
+	["stinks"] = "smells like flowers",
+	["loser"] = "future champion",
+	["losers"] = "future champions",
+	["idiot"] = "intellectual",
+	["idiots"] = "intellectuals",
+	["stupid"] = "very smart",
+	["dumb"] = "brilliant",
+	["dumbass"] = "genius",
+	["retard"] = "special person", -- Slur removal/replacement
+	["gay"] = "happy", -- Reclaiming the word
+	["noob"] = "new player",
+	["noobs"] = "new players",
+	["skill issue"] = "minor setback",
+	["diff"] = "friendship gap",
+	["mid"] = "top tier",
+	["dogwater"] = "extremely hydrated",
+	["tryhard"] = "passionate player",
+	["sweat"] = "hard worker",
+	["camper"] = "tactical positioner",
+	["camping"] = "tactically waiting",
+	["spammer"] = "enthusiastic typer",
+	["spamming"] = "typing with passion",
+	["lag"] = "tactical delay",
+	["lagging"] = "teleporting",
+	["ping"] = "internet points",
+	["fps"] = "slideshow speed",
+	["uninstall"] = "take a break",
+	["leave"] = "stay and have fun",
+	["quit"] = "keep going",
+	["die"] = "live long and prosper",
+	["kys"] = "love yourself",
+	["kill yourself"] = "love yourself",
+	["get good"] = "have fun",
+	["git gud"] = "have fun",
+	["fatherless"] = "loved by many",
+	["orphan"] = "hero",
+	["cringe"] = "unique",
+	["bozo"] = "friend",
+	["rip"] = "gg",
 }
 
 return Configuration
