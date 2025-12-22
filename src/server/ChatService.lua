@@ -12,6 +12,33 @@ local Configuration = require(ReplicatedStorage.AChat_Shared.Configuration)
 local Channel = require(script.Parent.Channel)
 local ServerCommands = require(script.Parent.ServerCommands)
 
+local RNG = Random.new()
+
+local function pickReplacement(replacement)
+	if type(replacement) == "table" then
+		local count = #replacement
+		if count > 0 then
+			return replacement[RNG:NextInteger(1, count)]
+		end
+		return nil
+	end
+	return replacement
+end
+
+local function messageHasKeyword(message, keywords)
+	if type(message) ~= "string" or type(keywords) ~= "table" then
+		return false
+	end
+	for word in string.gmatch(string.lower(message), "%a+") do
+		for _, keyword in ipairs(keywords) do
+			if word == keyword then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local ChatService = {}
 ChatService.Channels = {}
 ChatService.MessageReceived = Signal.new() -- Event for external scripts
@@ -181,9 +208,33 @@ function ChatService:NormalizeMessage(message)
 
 	-- Terminology Correction (optional)
 	if Configuration.TerminologyCorrection then
+		if Configuration.SkidSentenceMode then
+			local keywords = Configuration.SkidSentenceKeywords
+			local sentences = Configuration.SkidSentenceReplacements
+			if type(keywords) == "table" and type(sentences) == "table" and #sentences > 0 then
+				local lowerMessage = string.lower(message)
+				for _, keyword in ipairs(keywords) do
+					if type(keyword) == "string" and keyword ~= "" then
+						if string.find(lowerMessage, keyword, 1, true) then
+							local sentence = pickReplacement(sentences)
+							if type(sentence) == "string" and sentence ~= "" then
+								return sentence
+							end
+							break
+						end
+					end
+				end
+			end
+		end
+
 		for bad, good in pairs(Configuration.SkidReplacements) do
 			message = string.gsub(message, "(%a+)", function(word)
-				if string.lower(word) == bad then return good end
+				if string.lower(word) == bad then
+					local replacement = pickReplacement(good)
+					if type(replacement) == "string" then
+						return replacement
+					end
+				end
 				return word
 			end)
 		end
@@ -194,20 +245,91 @@ function ChatService:NormalizeMessage(message)
 		for bad, good in pairs(Configuration.ToxicReplacements) do
 			message = string.gsub(message, "(%a+)", function(word)
 				local lower = string.lower(word)
-				if lower == bad then return good end
+				if lower == bad then
+					local replacement = pickReplacement(good)
+					if type(replacement) == "string" then
+						return replacement
+					end
+				end
 				return word
 			end)
 
 			if string.find(bad, " ") then
 				local start, finish = string.find(string.lower(message), bad, 1, true)
 				if start then
-					message = string.sub(message, 1, start-1) .. good .. string.sub(message, finish+1)
+					local replacement = pickReplacement(good)
+					if type(replacement) == "string" then
+						message = string.sub(message, 1, start-1) .. replacement .. string.sub(message, finish+1)
+					end
 				end
 			end
 		end
 	end
 
 	return message
+end
+
+function ChatService:ShouldTriggerSkidChant(rawMessage)
+	if not Configuration.TerminologyCorrection then
+		return false
+	end
+	if not Configuration.SkidChantEnabled then
+		return false
+	end
+	if not messageHasKeyword(rawMessage, Configuration.SkidChantKeywords) then
+		return false
+	end
+	local chance = Configuration.SkidChantChance
+	if type(chance) ~= "number" then
+		return true
+	end
+	if chance <= 0 then
+		return false
+	end
+	if chance >= 1 then
+		return true
+	end
+	return RNG:NextNumber() < chance
+end
+
+function ChatService:StartSkidChant(channel, phraseSender)
+	if not channel or not phraseSender then
+		return
+	end
+	local chantMessage = Configuration.SkidChantMessage
+	if type(chantMessage) == "string" and chantMessage ~= "" then
+		channel:BroadcastMessage(phraseSender, chantMessage)
+	end
+
+	local emoji = Configuration.SkidChantEmoji
+	if type(emoji) ~= "string" or emoji == "" then
+		emoji = "👏👏"
+	end
+	local rounds = Configuration.SkidChantRounds
+	if type(rounds) ~= "number" or rounds < 1 then
+		rounds = 1
+	end
+	local delaySeconds = Configuration.SkidChantDelay
+	if type(delaySeconds) ~= "number" or delaySeconds < 0 then
+		delaySeconds = 0.5
+	end
+
+	task.spawn(function()
+		for _ = 1, rounds do
+			task.wait(delaySeconds)
+			for _, player in ipairs(Players:GetPlayers()) do
+				if channel:HasSpeaker(player) then
+					channel:BroadcastMessage(player, emoji)
+				end
+			end
+		end
+
+		local finalMessage = Configuration.SkidChantFinalMessage
+		if type(finalMessage) == "string" and finalMessage ~= "" then
+			task.wait(delaySeconds)
+			channel:BroadcastMessage(phraseSender, finalMessage)
+		end
+	end)
 end
 
 function ChatService:WatchTeams()
@@ -311,6 +433,8 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		end
 	end
 
+	local shouldChant = self:ShouldTriggerSkidChant(rawMessage)
+
 	message = self:NormalizeMessage(rawMessage)
 	if not message then return end
 	
@@ -334,6 +458,9 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 	-- 4. Verify they are actually IN that channel
 	if channel and channel:HasSpeaker(player) then
 		channel:BroadcastMessage(player, message)
+		if shouldChant then
+			self:StartSkidChant(channel, player)
+		end
 	else
 		warn(player.Name .. " tried to chat in " .. tostring(targetChannelName) .. " but is not a member.")
 	end
