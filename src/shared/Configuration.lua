@@ -60,6 +60,7 @@ Configuration.SkidSentenceKeywords = {
 -- Random chant burst when someone calls another player a "hacker".
 Configuration.SkidChantEnabled = true
 Configuration.SkidChantChance = 0.25
+Configuration.SkidChantCooldown = 30
 Configuration.SkidChantKeywords = { "hacker", "hackers" }
 Configuration.SkidChantMessage = "If you hate cheaters and you know it clap your hands!"
 Configuration.SkidChantFinalMessage = "If you hate cheaters and you know it and you really wanna show it, if you hate cheaters and you know it clap your hands!"

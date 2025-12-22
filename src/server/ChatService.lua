@@ -45,6 +45,7 @@ ChatService.MessageReceived = Signal.new() -- Event for external scripts
 
 -- Rate Limiting State: [UserId] = { Tokens = number, LastUpdate = number }
 local UserRateLimits = {}
+local SkidChantCooldowns = {} -- [channelName] = lastTriggerTime
 
 function ChatService:Start()
 	print("A-Chat: ChatService Starting...")
@@ -125,6 +126,20 @@ end
 function ChatService:BroadcastSystemMessage(text)
 	local remote = Network.GetRemote()
 	remote:FireAllClients("System", text, "System")
+end
+
+function ChatService:BroadcastSystemMessageToChannel(channel, text)
+	if not channel or type(text) ~= "string" or text == "" then
+		return
+	end
+	for i = #channel.Speakers, 1, -1 do
+		local player = channel.Speakers[i]
+		if not player or player.Parent ~= Players then
+			table.remove(channel.Speakers, i)
+		else
+			self:SendInternalMessage(player, "System", text, channel.Name)
+		end
+	end
 end
 
 -- [[ RATE LIMITER ]]
@@ -269,36 +284,52 @@ function ChatService:NormalizeMessage(message)
 	return message
 end
 
-function ChatService:ShouldTriggerSkidChant(rawMessage)
+function ChatService:ShouldTriggerSkidChant(rawMessage, channel)
 	if not Configuration.TerminologyCorrection then
 		return false
 	end
 	if not Configuration.SkidChantEnabled then
 		return false
 	end
+	if not channel or type(channel.Name) ~= "string" then
+		return false
+	end
 	if not messageHasKeyword(rawMessage, Configuration.SkidChantKeywords) then
 		return false
 	end
+	local cooldown = Configuration.SkidChantCooldown
+	if type(cooldown) == "number" and cooldown > 0 then
+		local lastTime = SkidChantCooldowns[channel.Name]
+		if lastTime and (os.clock() - lastTime) < cooldown then
+			return false
+		end
+	end
 	local chance = Configuration.SkidChantChance
 	if type(chance) ~= "number" then
+		SkidChantCooldowns[channel.Name] = os.clock()
 		return true
 	end
 	if chance <= 0 then
 		return false
 	end
 	if chance >= 1 then
+		SkidChantCooldowns[channel.Name] = os.clock()
 		return true
 	end
-	return RNG:NextNumber() < chance
+	if RNG:NextNumber() < chance then
+		SkidChantCooldowns[channel.Name] = os.clock()
+		return true
+	end
+	return false
 end
 
-function ChatService:StartSkidChant(channel, phraseSender)
-	if not channel or not phraseSender then
+function ChatService:StartSkidChant(channel)
+	if not channel then
 		return
 	end
 	local chantMessage = Configuration.SkidChantMessage
 	if type(chantMessage) == "string" and chantMessage ~= "" then
-		channel:BroadcastMessage(phraseSender, chantMessage)
+		self:BroadcastSystemMessageToChannel(channel, chantMessage)
 	end
 
 	local emoji = Configuration.SkidChantEmoji
@@ -317,17 +348,13 @@ function ChatService:StartSkidChant(channel, phraseSender)
 	task.spawn(function()
 		for _ = 1, rounds do
 			task.wait(delaySeconds)
-			for _, player in ipairs(Players:GetPlayers()) do
-				if channel:HasSpeaker(player) then
-					channel:BroadcastMessage(player, emoji)
-				end
-			end
+			self:BroadcastSystemMessageToChannel(channel, emoji)
 		end
 
 		local finalMessage = Configuration.SkidChantFinalMessage
 		if type(finalMessage) == "string" and finalMessage ~= "" then
 			task.wait(delaySeconds)
-			channel:BroadcastMessage(phraseSender, finalMessage)
+			self:BroadcastSystemMessageToChannel(channel, finalMessage)
 		end
 	end)
 end
@@ -433,8 +460,6 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 		end
 	end
 
-	local shouldChant = self:ShouldTriggerSkidChant(rawMessage)
-
 	message = self:NormalizeMessage(rawMessage)
 	if not message then return end
 	
@@ -457,9 +482,10 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 	
 	-- 4. Verify they are actually IN that channel
 	if channel and channel:HasSpeaker(player) then
+		local shouldChant = self:ShouldTriggerSkidChant(rawMessage, channel)
 		channel:BroadcastMessage(player, message)
 		if shouldChant then
-			self:StartSkidChant(channel, player)
+			self:StartSkidChant(channel)
 		end
 	else
 		warn(player.Name .. " tried to chat in " .. tostring(targetChannelName) .. " but is not a member.")
