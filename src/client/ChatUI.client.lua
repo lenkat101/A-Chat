@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local TextService = game:GetService("TextService")
 
 local NetworkModule = require(ReplicatedStorage.AChat_Shared.Network)
+local Configuration = require(ReplicatedStorage.AChat_Shared.Configuration)
 local ClientCommands = require(script.Parent.ClientCommands)
 local ChatBubbles = require(script.Parent.ChatBubbles)
 local Remote = NetworkModule.GetRemote()
@@ -34,6 +35,8 @@ local SIZES = {
 	Text = 18,
 	Padding = 8,
 }
+
+local MessageQueue = {}
 
 --------------------------------------------------------------------------------
 -- DISABLE DEFAULT CHAT
@@ -260,6 +263,17 @@ end
 local function AddMessage(senderName, messageText, channelName)
 	local label = CreateMessageLabel(senderName, messageText, channelName)
 	label.Parent = Scroller
+	table.insert(MessageQueue, label)
+
+	local limit = Configuration.HistoryLength
+	if type(limit) == "number" and limit > 0 then
+		while #MessageQueue > limit do
+			local old = table.remove(MessageQueue, 1)
+			if old and old.Parent then
+				old:Destroy()
+			end
+		end
+	end
 	
 	-- Animation: Fade In + Slide Up
 	label.TextTransparency = 1
@@ -287,6 +301,7 @@ local UIInterface = {
 				child:Destroy()
 			end
 		end
+		table.clear(MessageQueue)
 	end,
 	AddSystemMessage = function(msg)
 		AddMessage("System", msg, "System")

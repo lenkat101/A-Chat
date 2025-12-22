@@ -31,8 +31,7 @@ function ChatService:Start()
 	end)
 	
 	Players.PlayerRemoving:Connect(function(player)
-		-- Clean up memory
-		UserRateLimits[player.UserId] = nil
+		self:OnPlayerLeave(player)
 	end)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -51,12 +50,45 @@ end
 
 -- [[ API METHODS ]]
 
--- Sends a direct message to a specific player (used for Whispers/System)
+function ChatService:OnPlayerLeave(player)
+	-- Clean up memory/state
+	UserRateLimits[player.UserId] = nil
+
+	for _, channel in pairs(self.Channels) do
+		channel:RemoveSpeaker(player)
+	end
+
+	if ServerCommands.CleanupPlayer then
+		ServerCommands.CleanupPlayer(player)
+	end
+end
+
+-- Sends a direct message to a specific player (system/internal only, no filtering)
 function ChatService:SendInternalMessage(targetPlayer, senderName, message, channelName)
 	local remote = Network.GetRemote()
-	-- Basic sanity check for filtering if it's a whisper between players
-	-- For Alpha, we rely on the command handler, but ideally filter here.
 	remote:FireClient(targetPlayer, senderName, message, channelName)
+end
+
+function ChatService:SendPlayerMessageToPlayer(sender, targetPlayer, message, channelName, senderNameOverride)
+	local remote = Network.GetRemote()
+	local filterResult
+	local ok, err = pcall(function()
+		filterResult = TextService:FilterStringAsync(message, sender.UserId)
+	end)
+	if not ok or not filterResult then
+		warn("A-Chat: Filter failed for whisper: " .. tostring(err))
+		return
+	end
+
+	local ok2, safeMessage = pcall(function()
+		return filterResult:GetChatForUserAsync(targetPlayer.UserId)
+	end)
+	if not ok2 or not safeMessage then
+		warn("A-Chat: Filter whisper per-user failed: " .. tostring(safeMessage))
+		return
+	end
+
+	remote:FireClient(targetPlayer, senderNameOverride or sender.Name, safeMessage, channelName)
 end
 
 function ChatService:SendSystemMessage(targetPlayer, text)
@@ -97,6 +129,85 @@ function ChatService:CheckRateLimit(player)
 	else
 		return false -- Rejected (Spam)
 	end
+end
+
+function ChatService:IsBlank(message)
+	return message == "" or string.match(message, "^%s*$") ~= nil
+end
+
+function ChatService:StartsWithCommandPrefix(message)
+	local bridge = Configuration.CommandBridge
+	if not bridge or type(bridge.Prefixes) ~= "table" then
+		return false
+	end
+	for _, prefix in ipairs(bridge.Prefixes) do
+		if type(prefix) == "string" and prefix ~= "" then
+			if string.sub(message, 1, #prefix) == prefix then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function ChatService:ShouldBridgeMessage(message)
+	local bridge = Configuration.CommandBridge
+	if not bridge or not bridge.Enabled then
+		return false
+	end
+	if bridge.ForwardAll then
+		return true
+	end
+	return self:StartsWithCommandPrefix(message)
+end
+
+function ChatService:BridgeToLegacyChat(player, rawMessage)
+	local ok, err = pcall(function()
+		player:Chat(rawMessage)
+	end)
+	if not ok then
+		warn("A-Chat: Command bridge failed: " .. tostring(err))
+	end
+end
+
+function ChatService:NormalizeMessage(message)
+	-- Enforce length and basic whitespace check
+	if #message > Configuration.MaxLength then
+		message = string.sub(message, 1, Configuration.MaxLength)
+	end
+	if #message == 0 or string.match(message, "^%s*$") then
+		return nil
+	end
+
+	-- Terminology Correction (optional)
+	if Configuration.TerminologyCorrection then
+		for bad, good in pairs(Configuration.SkidReplacements) do
+			message = string.gsub(message, "(%a+)", function(word)
+				if string.lower(word) == bad then return good end
+				return word
+			end)
+		end
+	end
+
+	-- Anti-Toxic Filter (optional)
+	if Configuration.AntiToxic then
+		for bad, good in pairs(Configuration.ToxicReplacements) do
+			message = string.gsub(message, "(%a+)", function(word)
+				local lower = string.lower(word)
+				if lower == bad then return good end
+				return word
+			end)
+
+			if string.find(bad, " ") then
+				local start, finish = string.find(string.lower(message), bad, 1, true)
+				if start then
+					message = string.sub(message, 1, start-1) .. good .. string.sub(message, finish+1)
+				end
+			end
+		end
+	end
+
+	return message
 end
 
 function ChatService:WatchTeams()
@@ -168,56 +279,45 @@ end
 
 function ChatService:ProcessMessage(player, message, targetChannelName)
 	if typeof(message) ~= "string" then return end
+
+	local rawMessage = message
+	if type(Configuration.MaxLength) == "number" and #rawMessage > Configuration.MaxLength then
+		rawMessage = string.sub(rawMessage, 1, Configuration.MaxLength)
+	end
+	if self:IsBlank(rawMessage) then return end
 	
 	-- 0. Security: Rate Limit Check
 	if not self:CheckRateLimit(player) then
-		warn("A-Chat: Rate limit exceeded for " .. player.Name)
+		self:SendSystemMessage(player, "You are sending messages too fast. Please slow down.")
 		return 
 	end
 
-	-- 1. Length Check
-	if #message > Configuration.MaxLength then
-		message = string.sub(message, 1, Configuration.MaxLength)
-	end
-	
-	if #message == 0 or string.match(message, "^%s*$") then return end
-
-	-- 2. Check for Server Commands (/w, /r, /kick)
-	if string.sub(message, 1, 1) == "/" then
-		-- We pass 'self' so the command module can call SendInternalMessage
-		local handled = ServerCommands.Process(player, message, self)
+	-- 2. Check for Server Commands (/w, /r)
+	if string.sub(rawMessage, 1, 1) == "/" then
+		-- We pass 'self' so the command module can call chat service APIs
+		local handled = ServerCommands.Process(player, rawMessage, self)
 		if handled then return end
 	end
-	
-	-- 2.5 Terminology Correction (The "Skid Humiliator")
-	if Configuration.TerminologyCorrection then
-		for bad, good in pairs(Configuration.SkidReplacements) do
-			message = string.gsub(message, "(%a+)", function(word)
-				if string.lower(word) == bad then return good end
-				return word
-			end)
+
+	local shouldBridge = self:ShouldBridgeMessage(rawMessage)
+	if shouldBridge then
+		self:BridgeToLegacyChat(player, rawMessage)
+	end
+
+	local bridge = Configuration.CommandBridge
+	if bridge and bridge.SuppressInChat and not bridge.ForwardAll then
+		if self:StartsWithCommandPrefix(rawMessage) then
+			return
 		end
 	end
-	
-	-- 2.6 Anti-Toxic Filter
-	if Configuration.AntiToxic then
-		for bad, good in pairs(Configuration.ToxicReplacements) do
-			message = string.gsub(message, "(%a+)", function(word)
-				local lower = string.lower(word)
-				if lower == bad then return good end
-				return word
-			end)
-			
-			if string.find(bad, " ") then
-				local start, finish = string.find(string.lower(message), bad, 1, true)
-				if start then
-					message = string.sub(message, 1, start-1) .. good .. string.sub(message, finish+1)
-				end
-			end
-		end
-	end
+
+	message = self:NormalizeMessage(rawMessage)
+	if not message then return end
 	
 	-- 3. Determine Channel
+	if typeof(targetChannelName) ~= "string" then
+		targetChannelName = "Global"
+	end
 	targetChannelName = targetChannelName or "Global"
 	
 	-- Security: If trying to chat in Team channel, verify they are on that team

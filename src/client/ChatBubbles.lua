@@ -1,8 +1,6 @@
 -- src/client/ChatBubbles.lua
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
-
 local ChatBubbles = {}
 
 -- Configuration
@@ -21,6 +19,28 @@ local CONFIG = {
 
 -- State: [Player] = { {Gui=BillboardGui, Offset=number}, ... }
 local ActiveBubbles = {}
+
+local function PruneBubbles(player)
+	local bubbles = ActiveBubbles[player]
+	if not bubbles then return end
+	for i = #bubbles, 1, -1 do
+		local gui = bubbles[i].Gui
+		if not gui or not gui.Parent then
+			table.remove(bubbles, i)
+		end
+	end
+end
+
+local function ClearPlayerBubbles(player)
+	local bubbles = ActiveBubbles[player]
+	if not bubbles then return end
+	for _, data in ipairs(bubbles) do
+		if data.Gui then
+			data.Gui:Destroy()
+		end
+	end
+	ActiveBubbles[player] = nil
+end
 
 local function GetCharacterHead(player)
 	if not player.Character then return nil end
@@ -90,6 +110,7 @@ function ChatBubbles.Create(player, message)
 	end
 	
 	local bubbles = ActiveBubbles[player]
+	PruneBubbles(player)
 	
 	-- 1. Shift existing bubbles UP
 	-- We iterate backwards to handle removals safely if needed, but here we just shift.
@@ -156,19 +177,26 @@ function ChatBubbles.Create(player, message)
 			
 			t1.Completed:Wait()
 			billboard:Destroy()
-			
-			-- Remove from table?
-			-- It's tricky because table might have shifted.
-			-- We'll clean up nil instances next time we access the table or let the loop handle it.
-			-- Actually, let's just loop clean periodically or rely on weak tables.
-			-- For Alpha, this visual cleanup is fine.
 		end
+		PruneBubbles(player)
 	end)
 end
 
 -- Cleanup loop for memory leaks (players leaving)
 Players.PlayerRemoving:Connect(function(player)
-	ActiveBubbles[player] = nil
+	ClearPlayerBubbles(player)
 end)
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterRemoving:Connect(function()
+		ClearPlayerBubbles(player)
+	end)
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+	player.CharacterRemoving:Connect(function()
+		ClearPlayerBubbles(player)
+	end)
+end
 
 return ChatBubbles

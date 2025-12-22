@@ -11,6 +11,15 @@ local REMOTE_NAME = "AChat_Message"
 
 function Network.GetRemote()
 	local remote = ReplicatedStorage:FindFirstChild(REMOTE_NAME)
+	if remote and not remote:IsA("RemoteEvent") then
+		warn(("AChat: %s exists but is not a RemoteEvent"):format(REMOTE_NAME))
+		if RunService:IsServer() then
+			remote:Destroy()
+			remote = nil
+		else
+			remote = nil
+		end
+	end
 	if not remote then
 		-- Only the server should create it, strictly speaking, but for safety:
 		if RunService:IsServer() then
@@ -20,6 +29,9 @@ function Network.GetRemote()
 		else
 			-- Client waits for it
 			remote = ReplicatedStorage:WaitForChild(REMOTE_NAME)
+			if not remote:IsA("RemoteEvent") then
+				error(("AChat: %s is not a RemoteEvent"):format(REMOTE_NAME))
+			end
 		end
 	end
 	return remote

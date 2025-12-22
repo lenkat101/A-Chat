@@ -30,6 +30,15 @@ Configuration.Fonts = {
 -- [[ CHANNELS ]]
 Configuration.AutoJoinGlobal = true
 
+-- [[ COMMAND BRIDGE ]]
+-- Optional compatibility for admin scripts that listen to Roblox chat events.
+Configuration.CommandBridge = {
+	Enabled = true,
+	ForwardAll = false, -- If true, forwards every message; otherwise only prefixes.
+	Prefixes = { "/", "!", ";", ":" }, -- Add/remove prefixes as needed.
+	SuppressInChat = false, -- If true, don't broadcast command-like messages.
+}
+
 -- [[ 1. TERMINOLOGY CORRECTION (The "Skid Humiliator") ]]
 -- Disabled by default. If enabled, replaces "hacker" terms with humiliating alternatives.
 Configuration.TerminologyCorrection = false

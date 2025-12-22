@@ -1,7 +1,6 @@
 -- src/client/ClientCommands.lua
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
-local ContentProvider = game:GetService("ContentProvider")
 
 local ClientCommands = {}
 
@@ -78,7 +77,9 @@ function ClientCommands.Process(text, chatUIInterface)
 	local cmd = string.lower(string.sub(args[1], 2)) -- Remove slash
 	
 	if cmd == "console" then
-		StarterGui:SetCore("DevConsoleVisible", true)
+		pcall(function()
+			StarterGui:SetCore("DevConsoleVisible", true)
+		end)
 		return true
 		
 	elseif cmd == "clear" or cmd == "cls" then

@@ -1,7 +1,5 @@
 -- src/server/ServerCommands.lua
 local Players = game:GetService("Players")
-local Configuration = require(game.ReplicatedStorage.AChat_Shared.Configuration)
-
 local ServerCommands = {}
 
 -- Track who whispered whom last for /r support
@@ -63,12 +61,18 @@ function Handlers.whisper(sender, args, chatService)
 		chatService:SendSystemMessage(sender, "You cannot whisper yourself.")
 		return true
 	end
+
+	msgContent = chatService:NormalizeMessage(msgContent)
+	if not msgContent then
+		chatService:SendSystemMessage(sender, "Message cannot be empty.")
+		return true
+	end
 	
 	-- Send the Whisper
 	-- 1. To Recipient
-	chatService:SendInternalMessage(target, sender.Name, msgContent, "Whisper")
+	chatService:SendPlayerMessageToPlayer(sender, target, msgContent, "Whisper")
 	-- 2. To Sender (Confirmation)
-	chatService:SendInternalMessage(sender, "@" .. target.Name, msgContent, "Whisper")
+	chatService:SendPlayerMessageToPlayer(sender, sender, msgContent, "Whisper", "@" .. target.Name)
 	
 	-- Update Reply Logs
 	ReplyTargets[sender] = target
@@ -90,10 +94,16 @@ function Handlers.reply(sender, args, chatService)
 	end
 	
 	local msgContent = table.concat(args, " ", 1)
+
+	msgContent = chatService:NormalizeMessage(msgContent)
+	if not msgContent then
+		chatService:SendSystemMessage(sender, "Message cannot be empty.")
+		return true
+	end
 	
 	-- Send (Reuse whisper logic visually)
-	chatService:SendInternalMessage(target, sender.Name, msgContent, "Whisper")
-	chatService:SendInternalMessage(sender, "@" .. target.Name, msgContent, "Whisper")
+	chatService:SendPlayerMessageToPlayer(sender, target, msgContent, "Whisper")
+	chatService:SendPlayerMessageToPlayer(sender, sender, msgContent, "Whisper", "@" .. target.Name)
 	
 	-- Refresh reply target (optional, keeps conversation alive)
 	ReplyTargets[target] = sender
@@ -101,28 +111,13 @@ function Handlers.reply(sender, args, chatService)
 	return true
 end
 
-function Handlers.kick(sender, args, chatService)
-	-- Basic Admin Check (Replace with actual ID check later)
-	-- For Alpha, we'll let anyone test it? NO. Security risk.
-	-- Let's just print to console for now or check if game.CreatorId matches.
-	
-	if sender.UserId ~= game.CreatorId and game.PrivateServerId == "" then
-		chatService:SendSystemMessage(sender, "You do not have permission to kick.")
-		return true
+function ServerCommands.CleanupPlayer(player)
+	ReplyTargets[player] = nil
+	for speaker, target in pairs(ReplyTargets) do
+		if target == player then
+			ReplyTargets[speaker] = nil
+		end
 	end
-	
-	local targetName = args[1]
-	local reason = table.concat(args, " ", 2) or "No reason provided."
-	
-	local target = FindPlayer(targetName, sender)
-	if target then
-		target:Kick("A-Chat Admin: " .. reason)
-		chatService:BroadcastSystemMessage(target.Name .. " was kicked.")
-	else
-		chatService:SendSystemMessage(sender, "Player not found.")
-	end
-	
-	return true
 end
 
 -- Aliases

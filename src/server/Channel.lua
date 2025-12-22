@@ -40,7 +40,7 @@ end
 function Channel:BroadcastMessage(sender, message)
 	-- Filter and Send
 	-- We use a Promise to handle the async filtering
-	
+
 	Promise.new(function(resolve, reject)
 		local result
 		local success, err = pcall(function()
@@ -54,25 +54,47 @@ function Channel:BroadcastMessage(sender, message)
 		resolve(result)
 	end):andThen(function(filterResult)
 		-- Success! Now we need to broadcast.
-		-- Optimally, we use GetChatForUserAsync for each user if strict,
-		-- but for Global Chat, GetNonChatStringForBroadcastAsync is efficient and safe.
-		
-		local safeMessage
-		local success, err = pcall(function()
-			safeMessage = filterResult:GetNonChatStringForBroadcastAsync()
-		end)
-		
-		if not success or not safeMessage then
-			warn("A-Chat: Filter broadcast failed")
+		-- Use per-user filtering for private/team channels.
+
+		local remote = Network.GetRemote()
+		local isGlobal = (self.Name == "Global")
+
+		if isGlobal then
+			local safeMessage
+			local success, err = pcall(function()
+				safeMessage = filterResult:GetNonChatStringForBroadcastAsync()
+			end)
+			if not success or not safeMessage then
+				warn("A-Chat: Filter broadcast failed")
+				return
+			end
+
+			for i = #self.Speakers, 1, -1 do
+				local player = self.Speakers[i]
+				if not player or player.Parent ~= Players then
+					table.remove(self.Speakers, i)
+				else
+					remote:FireClient(player, sender.Name, safeMessage, self.Name)
+				end
+			end
 			return
 		end
-		
-		-- Send to all speakers in this channel
-		local remote = Network.GetRemote()
-		for _, player in ipairs(self.Speakers) do
-			remote:FireClient(player, sender.Name, safeMessage, self.Name)
+
+		for i = #self.Speakers, 1, -1 do
+			local player = self.Speakers[i]
+			if not player or player.Parent ~= Players then
+				table.remove(self.Speakers, i)
+			else
+				local ok, safeMessage = pcall(function()
+					return filterResult:GetChatForUserAsync(player.UserId)
+				end)
+				if ok and safeMessage then
+					remote:FireClient(player, sender.Name, safeMessage, self.Name)
+				else
+					warn("A-Chat: Filter per-user failed for " .. tostring(player))
+				end
+			end
 		end
-		
 	end):catch(function(err)
 		warn("A-Chat: Filtering error: " .. tostring(err))
 	end)
