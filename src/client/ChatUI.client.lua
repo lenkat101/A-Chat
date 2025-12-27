@@ -164,6 +164,11 @@ TextBox.Parent = InputFrame
 local CurrentChannel = "Global" -- "Global" or "Team"
 
 local function UpdateInputVisuals()
+	local hasTeam = Player.Team ~= nil
+	if CurrentChannel == "Team" and not hasTeam then
+		CurrentChannel = "Global"
+	end
+
 	-- Reset Tabs
 	GlobalTab.TextColor3 = Color3.fromRGB(150, 150, 150)
 	TeamTab.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -172,15 +177,22 @@ local function UpdateInputVisuals()
 		TextBox.PlaceholderText = "Click here to chat..."
 		TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 		GlobalTab.TextColor3 = Color3.fromRGB(255, 255, 255)
-	elseif CurrentChannel == "Team" then
+	elseif CurrentChannel == "Team" and hasTeam then
 		local teamColor = Player.TeamColor.Color
 		TextBox.PlaceholderText = "Chatting to Team..."
 		TextBox.TextColor3 = teamColor
 		TeamTab.TextColor3 = teamColor
 	end
+
+	if not hasTeam then
+		TeamTab.TextColor3 = Color3.fromRGB(120, 120, 120)
+	end
 end
 
 local function SetChannel(mode)
+	if mode == "Team" and Player.Team == nil then
+		mode = "Global"
+	end
 	CurrentChannel = mode
 	UpdateInputVisuals()
 end
@@ -360,5 +372,8 @@ end)
 
 -- Init
 UpdateInputVisuals()
+
+Player:GetPropertyChangedSignal("Team"):Connect(UpdateInputVisuals)
+Player:GetPropertyChangedSignal("TeamColor"):Connect(UpdateInputVisuals)
 
 print("A-Chat Client: Modern UI Loaded.")

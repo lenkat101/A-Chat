@@ -57,29 +57,6 @@ function Channel:BroadcastMessage(sender, message)
 		-- Use per-user filtering for private/team channels.
 
 		local remote = Network.GetRemote()
-		local isGlobal = (self.Name == "Global")
-
-		if isGlobal then
-			local safeMessage
-			local success, err = pcall(function()
-				safeMessage = filterResult:GetNonChatStringForBroadcastAsync()
-			end)
-			if not success or not safeMessage then
-				warn("A-Chat: Filter broadcast failed")
-				return
-			end
-
-			for i = #self.Speakers, 1, -1 do
-				local player = self.Speakers[i]
-				if not player or player.Parent ~= Players then
-					table.remove(self.Speakers, i)
-				else
-					remote:FireClient(player, sender.Name, safeMessage, self.Name)
-				end
-			end
-			return
-		end
-
 		for i = #self.Speakers, 1, -1 do
 			local player = self.Speakers[i]
 			if not player or player.Parent ~= Players then

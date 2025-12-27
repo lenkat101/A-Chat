@@ -243,7 +243,7 @@ function ChatService:NormalizeMessage(message)
 		end
 
 		for bad, good in pairs(Configuration.SkidReplacements) do
-			message = string.gsub(message, "(%a+)", function(word)
+			message = string.gsub(message, "(%w+)", function(word)
 				if string.lower(word) == bad then
 					local replacement = pickReplacement(good)
 					if type(replacement) == "string" then
@@ -256,14 +256,14 @@ function ChatService:NormalizeMessage(message)
 	end
 
 	-- Anti-Toxic Filter (optional)
-	if Configuration.AntiToxic then
-		for bad, good in pairs(Configuration.ToxicReplacements) do
-			message = string.gsub(message, "(%a+)", function(word)
-				local lower = string.lower(word)
-				if lower == bad then
-					local replacement = pickReplacement(good)
-					if type(replacement) == "string" then
-						return replacement
+		if Configuration.AntiToxic then
+			for bad, good in pairs(Configuration.ToxicReplacements) do
+				message = string.gsub(message, "(%w+)", function(word)
+					local lower = string.lower(word)
+					if lower == bad then
+						local replacement = pickReplacement(good)
+						if type(replacement) == "string" then
+							return replacement
 					end
 				end
 				return word
@@ -279,6 +279,14 @@ function ChatService:NormalizeMessage(message)
 				end
 			end
 		end
+	end
+
+	-- Re-enforce length after replacements
+	if type(Configuration.MaxLength) == "number" and #message > Configuration.MaxLength then
+		message = string.sub(message, 1, Configuration.MaxLength)
+	end
+	if #message == 0 or string.match(message, "^%s*$") then
+		return nil
 	end
 
 	return message
@@ -481,13 +489,14 @@ function ChatService:ProcessMessage(player, message, targetChannelName)
 	local channel = self.Channels[targetChannelName]
 	
 	-- 4. Verify they are actually IN that channel
-	if channel and channel:HasSpeaker(player) then
-		local shouldChant = self:ShouldTriggerSkidChant(rawMessage, channel)
-		channel:BroadcastMessage(player, message)
-		if shouldChant then
-			self:StartSkidChant(channel)
-		end
-	else
+		if channel and channel:HasSpeaker(player) then
+			local shouldChant = self:ShouldTriggerSkidChant(rawMessage, channel)
+			channel:BroadcastMessage(player, message)
+			self.MessageReceived:Fire(player, message, channel.Name)
+			if shouldChant then
+				self:StartSkidChant(channel)
+			end
+		else
 		warn(player.Name .. " tried to chat in " .. tostring(targetChannelName) .. " but is not a member.")
 	end
 end
